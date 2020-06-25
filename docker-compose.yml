@@ -1,31 +1,27 @@
-# Версия docker-compose
 version: '3.1'
-# Список наших сервисов (контейнеров)
 services:
   nginx:
-    # используем последний стабильный образ nginx
     image: nginx:latest
-    # маршрутизируем порты
     ports:
       - "80:80"
       - "443:443"
-    # монтируем директории, слева директории на основной машине, справа - куда они монтируются в контейнере
     volumes:
       - ./conf/hosts:/etc/nginx/conf.d
       - ./www:/var/www
       - ./logs:/var/log/nginx
-    # nginx должен общаться с php контейнером
     links:
       - php
   php:
-    # у нас свой образ для PHP, указываем путь к нему и говорим что его надо собрать
-    build: ./web-php
+    image: php
     user: '1000:1000'
     links:
       - mysql
-    # монтируем директорию с проектами
     volumes:
       - ./www:/var/www
+      - $HOME/.gitconfig:/home/php/.gitconfig
+      - ./.symfony:/home/php/.symfony
+    secrets:
+      - id_rsa
   mysql:
     image: percona:8
     restart: always
@@ -33,6 +29,9 @@ services:
         - "3306:3306"
     volumes:
         - ./mysql:/var/lib/mysql
-    # задаем пароль для root пользователя
     environment:
       MYSQL_ROOT_PASSWORD: secret
+
+secrets:
+  id_rsa:
+    file: ~/.ssh/id_rsa

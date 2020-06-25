@@ -9,6 +9,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update -q \
       curl \
       git \
       zip unzip \
+      wget \
     && install-php-extensions \
       bcmath \
       bz2 \
@@ -34,9 +35,12 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
     && ln -s $(composer config --global home) /root/composer
 ENV PATH=$PATH:/root/composer/vendor/bin COMPOSER_ALLOW_SUPERUSER=1
 
-RUN mkdir -p /home/php
+RUN mkdir -p /home/php/.ssh
+RUN ln -s /run/secrets/id_rsa /home/php/.ssh/id_rsa
+RUN touch /home/php/.ssh/known_hosts
 
 RUN groupadd -g 1000 php && useradd -u 1000 -g 1000 php && echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN chown -R php:php /var/www
 
 #ADD php.ini /usr/local/etc/php/conf.d/40-custom.ini
 
