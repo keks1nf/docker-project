@@ -22,6 +22,15 @@ services:
       - ./.symfony:/home/php/.symfony
     secrets:
       - id_rsa
+  vue:
+    image: vue
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./vue/project1:/home/js/
+      - $HOME/.gitconfig:/home/php/.gitconfig
+    secrets:
+      - id_rsa
   mysql:
     image: percona:8
     restart: always
