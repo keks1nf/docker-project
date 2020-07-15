@@ -24,11 +24,11 @@ services:
       - id_rsa
   vue:
     image: vue
-    ports:
-      - "8080:8080"
+    links:
+      - php
     volumes:
       - ./vue/project1:/home/js/
-      - $HOME/.gitconfig:/home/php/.gitconfig
+      - $HOME/.gitconfig:/home/js/.gitconfig
     secrets:
       - id_rsa
   mysql:
