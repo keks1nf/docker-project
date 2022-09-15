@@ -1,4 +1,5 @@
 www/
 mysql/
 logs/
-vue/
+#vue
+data/

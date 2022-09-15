@@ -1,39 +1,54 @@
 version: '3.1'
 services:
   nginx:
+#    network_mode: host
     image: nginx:latest
     ports:
-      - "80:80"
-      - "443:443"
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:43:443"
     volumes:
+      - ./conf/nginx.conf:/etc/nginx/nginx.conf
       - ./conf/hosts:/etc/nginx/conf.d
       - ./www:/var/www
       - ./logs:/var/log/nginx
     links:
       - php
-      - swagger-ui
+      - vue
+      - sentry
+    #   - swagger-ui
   php:
+#    network_mode: host
     image: php
+    build: web-php
     user: '1000:1000'
     links:
-      - mysql
+      - sentry
+      - rabbitmq
+      - redis
+      - elasticsearch
+    #   - mysql
     volumes:
       - ./www:/var/www
       - $HOME/.gitconfig:/home/php/.gitconfig
       - ./.symfony:/home/php/.symfony
+      - ./web-php/composer:/home/php/.composer
+#      - ./www/project1/config/supervisor/:/etc/supervisor/conf.d/
     secrets:
       - id_rsa
   vue:
+#    network_mode: host
     image: vue
-    links:
-      - php
+    build: web-js/vue
     user: '1000:1000'
     volumes:
       - ./vue/project1:/home/js/www
       - $HOME/.gitconfig:/home/js/.gitconfig
     secrets:
       - id_rsa
+    ports:
+      - "127.0.0.1:8080:8080"
   mysql:
+    # network_mode: host
     image: percona:8
     restart: always
     ports:
@@ -42,12 +57,186 @@ services:
         - ./mysql:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: secret
-  swagger-ui:
-    image: swaggerapi/swagger-ui
-    environment:
-      SWAGGER_JSON: /tmp/api.yaml
+
+  rabbitmq:
+#    network_mode: host
+    image: rabbitmq:3.10-management
     volumes:
-      - './www/project1/var/openapi:/tmp'
+      - ./data/rabbitmq:/var/lib/rabbitmq
+      - ./conf/rabbitmq/rabbitmq.config:/etc/rabbitmq/rabbitmq.config
+      - ./conf/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json
+
+  elastic-hq:
+    image: elastichq/elasticsearch-hq
+    network_mode: host
+
+  redis:
+#    network_mode: host
+    image: redis:6-alpine
+#    ports:
+#      - "6379:6379"
+
+#  zookeeper:
+#    image: confluentinc/cp-zookeeper:latest
+#    environment:
+#      ZOOKEEPER_CLIENT_PORT: 2181
+#      ZOOKEEPER_TICK_TIME: 2000
+#    ports:
+#      - 22181:2181
+
+#  kafka:
+#    image: confluentinc/cp-kafka:latest
+#    depends_on:
+#      - zookeeper
+#    ports:
+#      - 29092:29092
+#    environment:
+#      KAFKA_BROKER_ID: 1
+#      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+#      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+#      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+#      KAFKA_HEAP_OPTS: "-Xmx256M -Xms128M"
+
+#  statsd-server:
+#    image: node:12
+#    user: node
+#    working_dir: /home/node
+#    links:
+#      - php
+#    volumes:
+#      - ./zabbix/statsd-server:/home/node
+#    command: bash -c "npm install && node node_modules/statsd/stats.js node_modules/statsd-zabbix-backend/examples/docker.js"
+#    ports:
+#      - "8125:8125/udp"
+#      - "8126:8126"
+#
+#  zabbix-server:
+#    image: zabbix
+#    environment:
+#      DB_SERVER_HOST: mysql
+#      MYSQL_DATABASE: zabbix
+#      MYSQL_USER: root
+#      MYSQL_PASSWORD: secret
+#    ports:
+#      - '10051:10051'
+#    links:
+#      - mysql
+#    depends_on:
+#      - mysql
+#    volumes:
+#      - ./zabbix/shared:/var/lib/zabbix/shared
+#      - ./zabbix/shared/zabbix_server.conf:/etc/zabbix/zabbix_server.conf
+
+#  zabbix-web:
+#    image: zabbix/zabbix-web-nginx-mysql:alpine-latest
+#    container_name: zabbix-web
+#    environment:
+#      DB_SERVER_HOST: mysql
+#      MYSQL_ROOT_PASSWORD: secret
+#      MYSQL_USER: root
+#      MYSQL_PASSWORD: secret
+#      ZBX_SERVER_HOST: zabbix-server
+#      PHP_TZ: Europe/Kiev
+#    ports:
+#      - '127.0.0.1:8092:8080'
+#      - '445:443'
+#    links:
+#      - zabbix-server
+#    depends_on:
+#      - zabbix-server
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.16.2
+    container_name: elasticsearch
+    environment:
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+      - discovery.type=single-node
+    volumes:
+      - ./data/elasticsearch:/usr/share/elasticsearch/data
+    ports:
+      - '127.0.0.1:9200:9200'
+
+  redis-sentry:
+#    network_mode: host
+    image: redis:6-alpine
+
+  postgres:
+    image: postgres:10
+    environment:
+      POSTGRES_USER: sentry
+      POSTGRES_PASSWORD: sentry
+      POSTGRES_DB: sentry
+    volumes:
+      - ./data/pgdb:/var/lib/postgresql/data
+
+  sentry:
+#    network_mode: host
+    image: sentry
+    links:
+      - redis-sentry
+      - postgres
+    ports:
+      - '127.0.0.1:9010:9000'
+    environment:
+      SENTRY_SECRET_KEY: '49553eef60a57d89bf52e71795fd2b08'
+      SENTRY_POSTGRES_HOST: postgres
+      SENTRY_DB_NAME: sentry
+      SENTRY_DB_USER: sentry
+      SENTRY_DB_PASSWORD: sentry
+      SENTRY_REDIS_HOST: redis-sentry
+      SENTRY_SINGLE_ORGANIZATION: 'false'
+    volumes:
+      - ./conf/sentry/sentry.conf:/etc/sentry/config.yml
+      - ./conf/sentry/sentry.conf.py:/etc/sentry/sentry.conf.py
+
+  sentry-cron:
+#    network_mode: host
+    image: sentry
+    command: "sentry run cron"
+    links:
+      - redis-sentry
+      - postgres
+    environment:
+      SENTRY_SECRET_KEY: '49553eef60a57d89bf52e71795fd2b08'
+      SENTRY_POSTGRES_HOST: postgres
+      SENTRY_DB_NAME: sentry
+      SENTRY_DB_USER: sentry
+      SENTRY_DB_PASSWORD: sentry
+      SENTRY_REDIS_HOST: redis-sentry
+    volumes:
+      - ./data/sentry/sentry.conf:/etc/sentry/config.yml
+
+  sentry-worker:
+#    network_mode: host
+    image: sentry
+    command: "sentry run worker"
+    links:
+      - redis-sentry
+      - postgres
+    environment:
+      SENTRY_SECRET_KEY: '49553eef60a57d89bf52e71795fd2b08'
+      SENTRY_POSTGRES_HOST: postgres
+      SENTRY_DB_NAME: sentry
+      SENTRY_DB_USER: sentry
+      SENTRY_DB_PASSWORD: sentry
+      SENTRY_REDIS_HOST: redis-sentry
+    volumes:
+      - ./data/sentry/sentry.conf:/etc/sentry/config.yml
+#  swagger-ui:
+#    network_mode: host
+#    image: swaggerapi/swagger-ui
+#    environment:
+#      SWAGGER_JSON: /tmp/api.yaml
+#    volumes:
+#      - './www/project1/var/openapi:/tmp'
+#  prism:
+#    network_mode: host
+#    image: stoplight/prism:3
+#    volumes:
+#      - './www/project1/var/openapi:/tmp'
+#    command: 'proxy /tmp/api.yaml http://project1.localhost'
 
 secrets:
   id_rsa:

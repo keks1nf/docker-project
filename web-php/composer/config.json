@@ -1,0 +1,12 @@
+{
+  "config": {},
+  "repositories": {
+    "local": {
+      "type": "path",
+      "url": "/var/www/project1/packages/*",
+      "options": {
+        "symlink": true
+      }
+    }
+  }
+}
